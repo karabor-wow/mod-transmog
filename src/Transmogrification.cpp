@@ -1,6 +1,7 @@
 #include "Transmogrification.h"
 #include "ItemTemplate.h"
 #include "DatabaseEnv.h"
+#include "Tokenize.h"
 
 Transmogrification* Transmogrification::instance()
 {
@@ -203,7 +204,7 @@ const char* Transmogrification::GetSlotName(uint8 slot, WorldSession* session) c
             { LOCALE_frFR, "Pieds" },
             { LOCALE_deDE, "Füße" },
             { LOCALE_zhCN, "脚" },
-            { LOCALE_zhTW, "เท้า" },
+            { LOCALE_zhTW, "腳" },
             { LOCALE_esES, "Pies" },
             { LOCALE_esMX, "Pies" },
             { LOCALE_ruRU, "Ступни" }
@@ -213,7 +214,7 @@ const char* Transmogrification::GetSlotName(uint8 slot, WorldSession* session) c
             { LOCALE_frFR, "Poignets" },
             { LOCALE_deDE, "Handgelenke" },
             { LOCALE_zhCN, "腕部" },
-            { LOCALE_zhTW, "ข้อมือ" },
+            { LOCALE_zhTW, "手腕" },
             { LOCALE_esES, "Muñecas" },
             { LOCALE_esMX, "Muñecas" },
             { LOCALE_ruRU, "Запястья" }
@@ -223,7 +224,7 @@ const char* Transmogrification::GetSlotName(uint8 slot, WorldSession* session) c
             { LOCALE_frFR, "Mains" },
             { LOCALE_deDE, "Hände" },
             { LOCALE_zhCN, "手" },
-            { LOCALE_zhTW, "มือ" },
+            { LOCALE_zhTW, "手" },
             { LOCALE_esES, "Manos" },
             { LOCALE_esMX, "Manos" },
             { LOCALE_ruRU, "Кисти рук" }
@@ -233,7 +234,7 @@ const char* Transmogrification::GetSlotName(uint8 slot, WorldSession* session) c
             { LOCALE_frFR, "Dos" },
             { LOCALE_deDE, "Rücken" },
             { LOCALE_zhCN, "背部" },
-            { LOCALE_zhTW, "หลัง" },
+            { LOCALE_zhTW, "背部" },
             { LOCALE_esES, "Espalda" },
             { LOCALE_esMX, "Espalda" },
             { LOCALE_ruRU, "Спина" }
@@ -243,7 +244,7 @@ const char* Transmogrification::GetSlotName(uint8 slot, WorldSession* session) c
             { LOCALE_frFR, "Main droite" },
             { LOCALE_deDE, "Haupthand" },
             { LOCALE_zhCN, "主手" },
-            { LOCALE_zhTW, "มือหนึ่ง" },
+            { LOCALE_zhTW, "主手" },
             { LOCALE_esES, "Mano derecha" },
             { LOCALE_esMX, "Mano derecha" },
             { LOCALE_ruRU, "Правая рука" }
@@ -253,7 +254,7 @@ const char* Transmogrification::GetSlotName(uint8 slot, WorldSession* session) c
             { LOCALE_frFR, "Main gauche" },
             { LOCALE_deDE, "Nebenhand" },
             { LOCALE_zhCN, "副手" },
-            { LOCALE_zhTW, "มือสอง" },
+            { LOCALE_zhTW, "副手" },
             { LOCALE_esES, "Mano izquierda" },
             { LOCALE_esMX, "Mano izquierda" },
             { LOCALE_ruRU, "Левая рука" }
@@ -263,7 +264,7 @@ const char* Transmogrification::GetSlotName(uint8 slot, WorldSession* session) c
             { LOCALE_frFR, "À distance" },
             { LOCALE_deDE, "Distanz" },
             { LOCALE_zhCN, "远程" },
-            { LOCALE_zhTW, "ระยะไกล" },
+            { LOCALE_zhTW, "遠程" },
             { LOCALE_esES, "A distancia" },
             { LOCALE_esMX, "A distancia" },
             { LOCALE_ruRU, "Дальний бой" }
@@ -721,7 +722,7 @@ bool Transmogrification::SuitableForTransmogrification(Player* player, ItemTempl
     if (IsAllowed(proto->ItemId))
         return true;
 
-    if (!IsItemTransmogrifiable(proto))
+    if (!IsItemTransmogrifiable(proto, player->GetGUID()))
         return false;
 
     //[AZTH] Yehonal
@@ -781,7 +782,7 @@ bool Transmogrification::SuitableForTransmogrification(ObjectGuid guid, ItemTemp
     if (IsAllowed(proto->ItemId))
         return true;
 
-    if (!IsItemTransmogrifiable(proto))
+    if (!IsItemTransmogrifiable(proto, guid))
         return false;
 
     auto playerGuid = guid.GetCounter();
@@ -854,7 +855,7 @@ bool Transmogrification::SuitableForTransmogrification(ObjectGuid guid, ItemTemp
     return true;
 }
 
-bool Transmogrification::IsItemTransmogrifiable(ItemTemplate const* proto) const
+bool Transmogrification::IsItemTransmogrifiable(ItemTemplate const* proto, ObjectGuid const &playerGuid) const
 {
     if (!proto)
         return false;
@@ -865,7 +866,7 @@ bool Transmogrification::IsItemTransmogrifiable(ItemTemplate const* proto) const
     if (!AllowFishingPoles && proto->Class == ITEM_CLASS_WEAPON && proto->SubClass == ITEM_SUBCLASS_WEAPON_FISHING_POLE)
         return false;
 
-    if (!IsAllowedQuality(proto->Quality)) // (proto->Quality == ITEM_QUALITY_LEGENDARY)
+    if (!IsAllowedQuality(proto->Quality, playerGuid)) // (proto->Quality == ITEM_QUALITY_LEGENDARY)
         return false;
 
     // If World Event is not active, prevent using event dependant items
@@ -918,16 +919,16 @@ bool Transmogrification::IsNotAllowed(uint32 entry) const
     return NotAllowed.find(entry) != NotAllowed.end();
 }
 
-bool Transmogrification::IsAllowedQuality(uint32 quality) const
+bool Transmogrification::IsAllowedQuality(uint32 quality, ObjectGuid const &playerGuid) const
 {
     switch (quality)
     {
-        case ITEM_QUALITY_POOR: return AllowPoor;
-        case ITEM_QUALITY_NORMAL: return AllowCommon;
+        case ITEM_QUALITY_POOR: return AllowPoor || isPlusWhiteGreyEligible(playerGuid);
+        case ITEM_QUALITY_NORMAL: return AllowCommon || isPlusWhiteGreyEligible(playerGuid);
         case ITEM_QUALITY_UNCOMMON: return AllowUncommon;
         case ITEM_QUALITY_RARE: return AllowRare;
         case ITEM_QUALITY_EPIC: return AllowEpic;
-        case ITEM_QUALITY_LEGENDARY: return AllowLegendary;
+        case ITEM_QUALITY_LEGENDARY: return AllowLegendary || isPlusLegendaryEligible(playerGuid);
         case ITEM_QUALITY_ARTIFACT: return AllowArtifact;
         case ITEM_QUALITY_HEIRLOOM: return AllowHeirloom;
         default: return false;
@@ -1039,6 +1040,26 @@ void Transmogrification::LoadConfig(bool reload)
     {
         TokenEntry = 49426;
     }
+
+    /* TransmogPlus */
+    IsTransmogPlusEnabled = sConfigMgr->GetOption<bool>("Transmogrification.EnablePlus", false);
+
+    std::string stringMembershipIds = sConfigMgr->GetOption<std::string>("Transmogrification.MembershipLevels", "");
+    for (auto& itr : Acore::Tokenize(stringMembershipIds, ',', false)) {
+        MembershipIds.push_back(Acore::StringTo<uint32>(itr).value());
+    }
+
+    stringMembershipIds = sConfigMgr->GetOption<std::string>("Transmogrification.MembershipLevelsLegendary", "");
+    for (auto& itr : Acore::Tokenize(stringMembershipIds, ',', false)) {
+        MembershipIdsLegendary.push_back(Acore::StringTo<uint32>(itr).value());
+    }
+
+    stringMembershipIds = sConfigMgr->GetOption<std::string>("Transmogrification.MembershipLevelsPet", "");
+    for (auto& itr : Acore::Tokenize(stringMembershipIds, ',', false)) {
+        MembershipIdsPet.push_back(Acore::StringTo<uint32>(itr).value());
+    }
+
+    PetSpellId = sConfigMgr->GetOption<uint32>("Transmogrification.PetSpellId", 2000100);
 }
 
 void Transmogrification::DeleteFakeFromDB(ObjectGuid::LowType itemLowGuid, CharacterDatabaseTransaction* trans /*= nullptr*/)
@@ -1055,6 +1076,79 @@ void Transmogrification::DeleteFakeFromDB(ObjectGuid::LowType itemLowGuid, Chara
         (*trans)->Append("DELETE FROM custom_transmogrification WHERE GUID = {}", itemLowGuid);
     else
         CharacterDatabase.Execute("DELETE FROM custom_transmogrification WHERE GUID = {}", itemGUID.GetCounter());
+}
+
+uint32 Transmogrification::getPlayerMembershipLevel(ObjectGuid const & playerGuid) const {
+    CharacterCacheEntry const* playerData = sCharacterCache->GetCharacterCacheByGuid(playerGuid);
+    if (!playerData)
+        return 0;
+
+    uint32 accountId = playerData->AccountId;
+    QueryResult resultAcc = LoginDatabase.Query("SELECT `membership_level`  FROM `acore_cms_subscriptions` WHERE `account_name` COLLATE utf8mb4_general_ci = (SELECT `username` FROM `account` WHERE `id` = {})", accountId);
+
+    if (resultAcc)
+        return (*resultAcc)[0].Get<uint32>();
+
+    return 0;
+}
+
+bool Transmogrification::isPlusWhiteGreyEligible(ObjectGuid const &playerGuid) const {
+    if (!IsTransmogPlusEnabled)
+        return false;
+
+    if (MembershipIds.size() == 0)
+        return false;
+
+    const auto membershipLevel = getPlayerMembershipLevel(playerGuid);
+    if (membershipLevel == 0)
+        return false;
+
+    for (const auto& itr : MembershipIds)
+    {
+        if (itr == membershipLevel)
+            return true;
+    }
+
+    return false;
+}
+
+
+bool Transmogrification::isPlusLegendaryEligible(ObjectGuid const & playerGuid) const {
+    if (!IsTransmogPlusEnabled)
+        return false;
+
+    if (MembershipIdsLegendary.size() == 0)
+        return false;
+
+    const auto membershipLevel = getPlayerMembershipLevel(playerGuid);
+    if (membershipLevel == 0)
+        return false;
+
+    for (const auto& itr : MembershipIdsLegendary)
+    {
+        if (itr == membershipLevel)
+            return true;
+    }
+
+    return false;
+}
+
+
+bool Transmogrification::isTransmogPlusPetEligible(ObjectGuid const & playerGuid) const {
+    if (MembershipIdsPet.size() == 0)
+        return false;
+
+    const auto membershipLevel = getPlayerMembershipLevel(playerGuid);
+    if (membershipLevel == 0)
+        return false;
+
+    for (const auto& itr : MembershipIdsPet)
+    {
+        if (itr == membershipLevel)
+            return true;
+    }
+
+    return false;
 }
 
 bool Transmogrification::GetEnableTransmogInfo() const
